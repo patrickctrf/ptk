@@ -1,7 +1,8 @@
 from numpy import ones, where, array, array_split, hstack
+from sklearn.model_selection import TimeSeriesSplit
 
 
-def time_series_split(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, is_classifier=False, threshold=1):
+def time_series_split(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, enable_asymetrical=False, is_classifier=False, threshold=1):
     """
 Split the given time series into input (X) and observed (y) data.
 There are 3 principal modes of splitting data with this function: Stateful univariate series, non stateful univariate series, and non stateful multivariate series.
@@ -18,6 +19,7 @@ There is no stateful multivariate series option because, in this case, your inpu
     :param sampling_window_size: Size of window sampling (W) or time steps entering your network for each prediction. Must be positive integer.
     :param n_steps_prediction: How many steps it is going to predict ahead. Must be positive integer.
     :param stateful: True or False, indicating whether your network are suposedto work statefully or not, respectively.
+    :param enable_asymetrical: Whenever to return asymetrical sequences in X output data.
     :param is_classifier: If True, the 'y' output data is transformed into +1 or 0, according to 'threshold' selected by user. Useful for non quantitative prediction (classification, not regression).
     :param threshold: Threshold for 'is_classifier' parameter. Float in the interval of your observed data 'data_y'.
     :return: X input and y observed data, formatted according to the given function parameters.
@@ -28,6 +30,18 @@ There is no stateful multivariate series option because, in this case, your inpu
     # Converte os dados para array numpy, para podermos utilizar a API dos arrays.
     data_x = array(data_x)
     data_y = array(data_y)
+
+    if enable_asymetrical is True:
+        X = data_x.shape[0] * [0]
+        y = data_y.shape[0] * [0]
+
+        tscv = TimeSeriesSplit(n_splits=data_x.shape[0] - 1)
+
+        for i, (train_index, test_index) in enumerate(tscv.split(data_x)):
+            X[i] = data_x[train_index]
+            y[i] = data_y[test_index]
+
+        return array(X), array(y)
 
     if stateful is False:
         # arrays para armazenar as saidas

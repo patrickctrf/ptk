@@ -1,8 +1,7 @@
 from numpy import ones, where, array, array_split, hstack
-from sklearn.model_selection import TimeSeriesSplit
 
 
-def time_series_split(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, enable_asymetrical=False, is_classifier=False, threshold=1):
+def timeseries_dataloader(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, enable_asymetrical=False, is_classifier=False, threshold=1):
     """
 Split the given time series into input (X) and observed (y) data.
 There are 3 principal modes of splitting data with this function: Stateful univariate series, non stateful univariate series, and non stateful multivariate series.
@@ -24,6 +23,13 @@ There is no stateful multivariate series option because, in this case, your inpu
     :param threshold: Threshold for 'is_classifier' parameter. Float in the interval of your observed data 'data_y'.
     :return: X input and y observed data, formatted according to the given function parameters.
     """
+
+    # Se estivermos trabalhando com o caso asimetrico, nao faz sentido falar em
+    # janela de amostragem, portanto zeramos para nao precisar alterar o resto
+    # do algoritmo.
+    if enable_asymetrical is True:
+        sampling_window_size = 0
+
     if data_y is None:
         data_y = data_x
 
@@ -31,22 +37,15 @@ There is no stateful multivariate series option because, in this case, your inpu
     data_x = array(data_x)
     data_y = array(data_y)
 
-    if enable_asymetrical is True:
-        X = data_x.shape[0] * [0]
-        y = data_y.shape[0] * [0]
-
-        tscv = TimeSeriesSplit(n_splits=data_x.shape[0] - 1)
-
-        for i, (train_index, test_index) in enumerate(tscv.split(data_x)):
-            X[i] = data_x[train_index]
-            y[i] = data_y[test_index]
-
-        return array(X), array(y)
-
-    if stateful is False:
+    if stateful is False or enable_asymetrical is True:
         # arrays para armazenar as saidas
         X = ones((data_x.shape[0] - n_steps_prediction - sampling_window_size, sampling_window_size) + data_x.shape[1:])
         y = ones((data_y.shape[0] - n_steps_prediction - sampling_window_size, n_steps_prediction) + data_y.shape[1:])
+
+        # Para o caso assimetrico, X tera arrays de tamanhos diferentes e
+        # precisamos portnto de uma lista para armazena-los antes de converter
+        # em uma matriz assimetrica numpy.
+        X_asymmetric = (data_x.shape[0] - n_steps_prediction - sampling_window_size) * [0]
 
         i = 0
         # Precisamos de N amostras (sampling_window_size) e as amostras de
@@ -55,17 +54,32 @@ There is no stateful multivariate series option because, in this case, your inpu
             X[i] = (data_x[i:i + sampling_window_size])
             y[i] = (data_y[i + sampling_window_size:(i + sampling_window_size) + n_steps_prediction])
 
+            # Sequencias assimetricas sao compostas do elemento atual a ser
+            # adicionado concatenado com os anteriores.
+            if i == 0:
+                X_asymmetric[i] = data_x[i:i + 1]
+            else:
+                X_asymmetric[i] = hstack((X_asymmetric[i - 1], data_x[i:i + 1]))
+
             i += 1
 
-    # Se estivermos trabalhando com uma serie stateful, a unica demanda eh
-    # deslocar a entrada e a saida em uma unidade (a entrada eh tudo o que vimos
-    # ate agora e a saida eh o proximo step, que sera conhecido no passo seguinte).
+        # Apos acabar o loop while, convertemos a LISTA X_asymmetric em uma
+        # matriz ASSIMETRICA (cada elemento eh um array de tamanho diferente).
+        X_asymmetric = array(X_asymmetric, dtype=object)
+
+    # Se estivermos trabalhando com uma serie stateful simetrica, a unica
+    # demanda eh deslocar a entrada e a saida em uma unidade (a entrada eh tudo
+    # o que vimos ate agora e a saida eh o proximo step, que sera conhecido no
+    # passo seguinte).
     else:
         X = data_x[:-1]
         y = data_y[1:]
 
     if is_classifier is True:
         y = where(y > threshold, 1.0, 0.0)
+
+    if enable_asymetrical is True:
+        return X_asymmetric, y
 
     return X, y
 

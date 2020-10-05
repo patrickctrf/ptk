@@ -1,4 +1,4 @@
-from numpy import ones, where, array, array_split, hstack
+from numpy import ones, where, array, array_split, hstack, vstack
 
 
 def timeseries_dataloader(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, enable_asymetrical=False, is_classifier=False, threshold=1):
@@ -33,6 +33,13 @@ There is no stateful multivariate series option because, in this case, your inpu
     if data_y is None:
         data_y = data_x
 
+    # If we receive arrays of shape N, it should acttually be shape (N,1).
+    # Matrix arrays are already properly formatted.
+    if len(data_x.shape) == 1:
+        data_x = data_x.reshape(-1, 1)
+    if len(data_y.shape) == 1:
+        data_y = data_y.reshape(-1, 1)
+
     # Converte os dados para array numpy, para podermos utilizar a API dos arrays.
     data_x = array(data_x)
     data_y = array(data_y)
@@ -59,7 +66,7 @@ There is no stateful multivariate series option because, in this case, your inpu
             if i == 0:
                 X_asymmetric[i] = data_x[i:i + 1]
             else:
-                X_asymmetric[i] = hstack((X_asymmetric[i - 1], data_x[i:i + 1]))
+                X_asymmetric[i] = vstack((X_asymmetric[i - 1], data_x[i:i + 1]))
 
             i += 1
 

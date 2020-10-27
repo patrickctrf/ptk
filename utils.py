@@ -3,7 +3,7 @@ import os
 import shutil
 
 import torch
-from numpy import load, arange, random, array
+from numpy import load, arange, random, array, int64
 from tensorflow.python.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
 from torch import from_numpy, as_tensor
@@ -86,15 +86,15 @@ class GenericDatasetFromFiles(Dataset):
 Dataset class loader in PyTorch pattern. It expects data in the NPZ file format
 (numpy), with 2 files called 'x_data.npz' and 'y_data.npz'.
 
-        :param data_path: Directory where data is located (put a '/' at the end of path. E.g.: "path/" ).
+        :param data_path: Directory where data is located.
         :param convert_first: If arrays must be converted into Tensors.
         :param mmap_mode: Numpy memmap mode. Keeps arrays on disk if they are
         too big for memory. More info {‘r+’, ‘r’, ‘w+’, ‘c’}: https://numpy.org/doc/stable/reference/generated/numpy.memmap.html#numpy.memmap
         :param transform: PyTorch transform.
         """
         super().__init__()
-        self.x_dictionary = load(data_path + "x_data.npz", mmap_mode=mmap_mode)
-        self.y_dictionary = load(data_path + "y_data.npz", mmap_mode=mmap_mode)
+        self.x_dictionary = load(os.path.join(data_path, "x_data.npz"), mmap_mode=mmap_mode)
+        self.y_dictionary = load(os.path.join(data_path, "y_data.npz"), mmap_mode=mmap_mode)
         self.length = len(self.x_dictionary)
         self.convert_first = convert_first
 
@@ -142,11 +142,11 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
             return self.__get_as_tensor__(idx)
         # If we receive an index, return the sample.
         # Else, if receiving an slice or array, return an slice or array from the samples.
-        if isinstance(idx, int):
-            return self.x_dictionary["arr_" + str(idx)], self.y_dictionary["arr_" + str(idx)]
+        if isinstance(idx, int) or isinstance(idx, int64):
+            return self.x_dictionary["arr_" + str(idx)].astype("float32"), self.y_dictionary["arr_" + str(idx)].astype("float32")
         else:
-            return [self.x_dictionary[file_name] for file_name in self.x_dictionary_files[idx]], \
-                   [self.y_dictionary[file_name] for file_name in self.y_dictionary_files[idx]]
+            return [self.x_dictionary[file_name].astype("float32") for file_name in self.x_dictionary_files[idx]], \
+                   [self.y_dictionary[file_name].astype("float32") for file_name in self.y_dictionary_files[idx]]
 
     def __get_as_tensor__(self, idx):
         """
@@ -158,10 +158,10 @@ Same as __getitem__, but converting the return into torch.Tensor.
         # If we receive an index, return the sample.
         # Else, if receiving an slice or array, return an slice or array from the samples.
         if isinstance(idx, int):
-            return from_numpy(self.x_dictionary["arr_" + str(idx)]).float().to(self.device), from_numpy(self.y_dictionary["arr_" + str(idx)]).float().to(self.device)
+            return from_numpy(self.x_dictionary["arr_" + str(idx)].astype("float32")).to(self.device), from_numpy(self.y_dictionary["arr_" + str(idx)].astype("float32")).to(self.device)
         else:
-            return [from_numpy(self.x_dictionary[file_name]).float().to(self.device) for file_name in self.x_dictionary_files[idx]], \
-                   [from_numpy(self.y_dictionary[file_name]).float().to(self.device) for file_name in self.y_dictionary_files[idx]]
+            return [from_numpy(self.x_dictionary[file_name].astype("float32")).to(self.device) for file_name in self.x_dictionary_files[idx]], \
+                   [from_numpy(self.y_dictionary[file_name].astype("float32")).to(self.device) for file_name in self.y_dictionary_files[idx]]
 
 
 class PackingSequenceDataloader(object):

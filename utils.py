@@ -6,30 +6,32 @@ import torch
 from numpy import load, arange, random, array, int64
 from tensorflow.python.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
-from torch import from_numpy, as_tensor
+from torch import from_numpy
 from torch.nn.utils.rnn import pack_sequence
 from torch.utils.data import Dataset
 
 
-def split_into_chunks(list, split_dims):
+def split_into_chunks(lista, split_dims):
     """
-Split a list into evenly sized chunks. The last chunk will be smaller if the original list length is not divisible by 'split_dims'.
+Split a list into evenly sized chunks. The last chunk will be smaller if the
+original list length is not divisible by 'split_dims'.
 
-    :param list: List to be split.
+    :param lista: List to be split.
     :param split_dims: Length of each split chunk.
     """
     aux_list = []
     # For item i in a range that is a length of l,
-    for i in range(0, len(list), split_dims):
+    for i in range(0, len(lista), split_dims):
         # Create an index range for l of n items:
-        aux_list.append(list[i:i + split_dims])
+        aux_list.append(lista[i:i + split_dims])
 
     return aux_list
 
 
 def tensorboard_and_callbacks(batch_size, log_dir="./logs", model_checkpoint_file="best_weights.{val_loss:.4f}-{epoch:05d}.hdf5", csv_file_path="loss_log.csv"):
     """
-Utility function to generate Keras tensorboard and others callbacks, deal with directory needs and keep the code clean.
+Utility function to generate Keras tensorboard and others callbacks, deal with
+directory needs and keep the code clean.
 
     :param batch_size: batch size in training data (needed for compatibility).
     :param log_dir: Where to save the logs files.
@@ -91,6 +93,8 @@ Dataset class loader in PyTorch pattern. It expects data in the NPZ file format
         :param mmap_mode: Numpy memmap mode. Keeps arrays on disk if they are
         too big for memory. More info {‘r+’, ‘r’, ‘w+’, ‘c’}: https://numpy.org/doc/stable/reference/generated/numpy.memmap.html#numpy.memmap
         :param transform: PyTorch transform.
+        :param device: If converting data into tensors, already put those in
+        PyTorch's device (torch.device("cuda:0"), for example). Default: torch.device("cpu")
         """
         super().__init__()
         self.x_dictionary = load(os.path.join(data_path, "x_data.npz"), mmap_mode=mmap_mode)
@@ -166,6 +170,14 @@ Same as __getitem__, but converting the return into torch.Tensor.
 
 class PackingSequenceDataloader(object):
     def __init__(self, dataset, batch_size=1, shuffle=False):
+        """
+Utility class for loading data with input already formated as packed sequences
+(for PyTorch LSTMs, for example).
+
+        :param dataset: PyTorch-like Dataset to load.
+        :param batch_size: Mini batch size.
+        :param shuffle: Shuffle data.
+        """
         super().__init__()
         self.dataset = dataset
         self.batch_size = batch_size
@@ -188,7 +200,7 @@ Returns an iterable of itself.
         """
 Intended to be used as iterator.
 
-        :return: Next iteration element.
+        :return: Tuple containing (input packed sequence, output targets)
         """
         if self.counter >= self.length:
             raise StopIteration()

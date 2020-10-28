@@ -91,7 +91,7 @@ There is no stateful multivariate series option because, in this case, your inpu
     return X, y
 
 
-class TimeSeriesSplitCV():
+class TimeSeriesSplitCV(object):
     def __init__(self, n_splits=5, training_percent=0.7, sampling_window_size=10, n_steps_prediction=1, stateful=False, is_classifier=False, threshold=1, blocking_split=False):
         """
 Time series split with cross validation separation as a compatible sklearn-like splitter.
@@ -114,6 +114,7 @@ There is no stateful multivariate series option because, in this case, your inpu
         :param threshold: Threshold for 'is_classifier' parameter. Float in the interval of your observed data 'data_y'.
         :return: X input and y observed data, formatted according to the given function parameters.
         """
+        super().__init__()
         self.n_splits = n_splits
         self.training_percent = training_percent
         self.sampling_window_size = sampling_window_size

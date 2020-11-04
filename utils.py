@@ -1,6 +1,8 @@
 import glob
 import os
 import shutil
+from queue import Queue
+from threading import Thread
 
 import torch
 from numpy import load, arange, random, array, int64
@@ -206,7 +208,42 @@ Intended to be used as iterator.
             raise StopIteration()
 
         mini_batch_input = pack_sequence(self.dataset[self.shuffle_array[self.counter:self.counter + self.batch_size]][0], enforce_sorted=False)
-        mini_batch_output = self.dataset[self.shuffle_array[self.counter:self.counter + self.batch_size]][1]
+        mini_batch_output = torch.stack(self.dataset[self.shuffle_array[self.counter:self.counter + self.batch_size]][1])
         self.counter = self.counter + self.batch_size
 
         return mini_batch_input, mini_batch_output
+
+
+class DataManager(Thread):
+    def __init__(self, data_loader, buffer_size=3, device=torch.device("cpu")):
+        super().__init__()
+        self.buffer_queue = Queue(maxsize=buffer_size)
+        self.data_loader = data_loader
+        self.buffer_size = buffer_size
+        self.device = device
+
+        self.dataloader_finished = False
+
+    def run(self):
+        for i, (x, y) in enumerate(self.data_loader):
+            self.buffer_queue.put((x.to(self.device), y.to(self.device)))
+        self.dataloader_finished = True
+
+    def __iter__(self):
+        """
+Returns an iterable of itself.
+
+        :return: Iterable around this class.
+        """
+        self.dataloader_finished = False
+        return self
+
+    def __next__(self):
+        """
+Intended to be used as iterator.
+
+        :return: Next iteration element.
+        """
+        if self.dataloader_finished is True and self.buffer_queue.empty():
+            raise StopIteration()
+        return self.buffer_queue.get()

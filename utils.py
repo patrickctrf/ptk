@@ -5,7 +5,7 @@ from queue import Queue
 from threading import Thread
 
 import torch
-from numpy import load, arange, random, array, int64
+from numpy import load, arange, random, array, int64, absolute, asarray
 from tensorflow.python.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
 from torch import from_numpy
@@ -28,6 +28,21 @@ original list length is not divisible by 'split_dims'.
         aux_list.append(lista[i:i + split_dims])
 
     return aux_list
+
+
+def find_nearest(array_to_search, value):
+    """
+This function takes 1 array as first argument and a value to find the element
+in array whose value is the closest. Returns the closest value element and its
+index in the original array.
+
+    :param array_to_search: Reference array.
+    :param value: Value to find closest element.
+    :return: Tuple (Element value, element index).
+    """
+    array_to_search = asarray(array_to_search)
+    idx = (absolute(array_to_search - value)).argmin()
+    return array_to_search[idx], idx
 
 
 def tensorboard_and_callbacks(batch_size, log_dir="./logs", model_checkpoint_file="best_weights.{val_loss:.4f}-{epoch:05d}.hdf5", csv_file_path="loss_log.csv"):
@@ -184,7 +199,11 @@ Utility class for loading data with input already formated as packed sequences
         self.dataset = dataset
         self.batch_size = batch_size
         self.shuffle = shuffle
-        self.length = len(dataset)
+
+        # Esta equacao apenas ARREDONDA a quantidade de mini-batches para CIMA
+        # Quando o resultado da divisao nao eh inteiro (sobra resto), significa
+        # apenas que o ultimo batch sera menor que os demais
+        self.length = len(dataset) // self.batch_size + (len(dataset) % self.batch_size > 0)
 
         self.shuffle_array = arange(self.length)
         if shuffle is True: random.shuffle(self.shuffle_array)
@@ -209,9 +228,12 @@ Intended to be used as iterator.
 
         mini_batch_input = pack_sequence(self.dataset[self.shuffle_array[self.counter:self.counter + self.batch_size]][0], enforce_sorted=False)
         mini_batch_output = torch.stack(self.dataset[self.shuffle_array[self.counter:self.counter + self.batch_size]][1])
-        self.counter = self.counter + self.batch_size
+        self.counter = self.counter + 1
 
         return mini_batch_input, mini_batch_output
+
+    def __len__(self):
+        return self.length
 
 
 class DataManager(Thread):
@@ -235,6 +257,7 @@ Returns an iterable of itself.
 
         :return: Iterable around this class.
         """
+        self.start()
         self.dataloader_finished = False
         return self
 
@@ -247,3 +270,6 @@ Intended to be used as iterator.
         if self.dataloader_finished is True and self.buffer_queue.empty():
             raise StopIteration()
         return self.buffer_queue.get()
+
+    def __len__(self):
+        return len(self.data_loader)

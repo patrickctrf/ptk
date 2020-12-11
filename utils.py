@@ -237,18 +237,19 @@ Intended to be used as iterator.
 
 
 class DataManager(Thread):
-    def __init__(self, data_loader, buffer_size=3, device=torch.device("cpu")):
+    def __init__(self, data_loader, buffer_size=3, device=torch.device("cpu"), data_type=torch.float32):
         super().__init__()
         self.buffer_queue = Queue(maxsize=buffer_size)
         self.data_loader = data_loader
         self.buffer_size = buffer_size
         self.device = device
+        self.data_type = data_type
 
         self.dataloader_finished = False
 
     def run(self):
         for i, (x, y) in enumerate(self.data_loader):
-            self.buffer_queue.put((x.to(self.device), y.to(self.device)))
+            self.buffer_queue.put((x.to(self.data_type).to(self.device), y.to(self.data_type).to(self.device)))
         self.dataloader_finished = True
 
     def __iter__(self):

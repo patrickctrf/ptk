@@ -2,7 +2,7 @@ import glob
 import os
 import shutil
 from queue import Queue
-from threading import Thread
+from threading import Thread, Event
 
 import torch
 from numpy import load, arange, random, array, int64, absolute, asarray
@@ -237,20 +237,27 @@ Intended to be used as iterator.
 
 
 class DataManager(Thread):
-    def __init__(self, data_loader, buffer_size=3, device=torch.device("cpu"), data_type=torch.float32):
+    def __init__(self, data_loader, buffer_size=3, device=torch.device("cpu"), data_type=torch.float32, stop_event=Event(), update_rate=1.0):
         super().__init__()
         self.buffer_queue = Queue(maxsize=buffer_size)
         self.data_loader = data_loader
         self.buffer_size = buffer_size
         self.device = device
         self.data_type = data_type
+        self.stop_event = stop_event
+        self.update_rate = update_rate
 
         self.dataloader_finished = False
 
     def run(self):
         for i, (x, y) in enumerate(self.data_loader):
-            self.buffer_queue.put((x.to(self.data_type).to(self.device), y.to(self.data_type).to(self.device)))
-        self.dataloader_finished = True
+            # Important to set before put in queue to avoid race condition
+            # would happen if trying to get() in next() method before setting this flag
+            if i >= len(self) - 1:
+                self.dataloader_finished = True
+
+            self.buffer_queue.put([x.to(self.data_type).to(self.device),
+                                   y.to(self.data_type).to(self.device)])
 
     def __iter__(self):
         """
@@ -270,6 +277,7 @@ Intended to be used as iterator.
         """
         if self.dataloader_finished is True and self.buffer_queue.empty():
             raise StopIteration()
+
         return self.buffer_queue.get()
 
     def __len__(self):

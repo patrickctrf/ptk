@@ -1,7 +1,7 @@
-from numpy import ones, where, array, array_split, hstack
+from numpy import ones, where, array, array_split, hstack, vstack
 
 
-def time_series_split(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, is_classifier=False, threshold=1):
+def timeseries_dataloader(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, enable_asymetrical=False, is_classifier=False, threshold=1):
     """
 Split the given time series into input (X) and observed (y) data.
 There are 3 principal modes of splitting data with this function: Stateful univariate series, non stateful univariate series, and non stateful multivariate series.
@@ -18,21 +18,41 @@ There is no stateful multivariate series option because, in this case, your inpu
     :param sampling_window_size: Size of window sampling (W) or time steps entering your network for each prediction. Must be positive integer.
     :param n_steps_prediction: How many steps it is going to predict ahead. Must be positive integer.
     :param stateful: True or False, indicating whether your network are suposedto work statefully or not, respectively.
+    :param enable_asymetrical: Whenever to return asymetrical sequences in X output data.
     :param is_classifier: If True, the 'y' output data is transformed into +1 or 0, according to 'threshold' selected by user. Useful for non quantitative prediction (classification, not regression).
     :param threshold: Threshold for 'is_classifier' parameter. Float in the interval of your observed data 'data_y'.
     :return: X input and y observed data, formatted according to the given function parameters.
     """
+
+    # Se estivermos trabalhando com o caso asimetrico, nao faz sentido falar em
+    # janela de amostragem, portanto zeramos para nao precisar alterar o resto
+    # do algoritmo.
+    if enable_asymetrical is True:
+        sampling_window_size = 0
+
     if data_y is None:
         data_y = data_x
+
+    # If we receive arrays of shape N, it should acttually be shape (N,1).
+    # Matrix arrays are already properly formatted.
+    if len(data_x.shape) == 1:
+        data_x = data_x.reshape(-1, 1)
+    if len(data_y.shape) == 1:
+        data_y = data_y.reshape(-1, 1)
 
     # Converte os dados para array numpy, para podermos utilizar a API dos arrays.
     data_x = array(data_x)
     data_y = array(data_y)
 
-    if stateful is False:
+    if stateful is False or enable_asymetrical is True:
         # arrays para armazenar as saidas
         X = ones((data_x.shape[0] - n_steps_prediction - sampling_window_size, sampling_window_size) + data_x.shape[1:])
         y = ones((data_y.shape[0] - n_steps_prediction - sampling_window_size, n_steps_prediction) + data_y.shape[1:])
+
+        # Para o caso assimetrico, X tera arrays de tamanhos diferentes e
+        # precisamos portnto de uma lista para armazena-los antes de converter
+        # em uma matriz assimetrica numpy.
+        X_asymmetric = (data_x.shape[0] - n_steps_prediction - sampling_window_size) * [0]
 
         i = 0
         # Precisamos de N amostras (sampling_window_size) e as amostras de
@@ -41,11 +61,23 @@ There is no stateful multivariate series option because, in this case, your inpu
             X[i] = (data_x[i:i + sampling_window_size])
             y[i] = (data_y[i + sampling_window_size:(i + sampling_window_size) + n_steps_prediction])
 
+            # Sequencias assimetricas sao compostas do elemento atual a ser
+            # adicionado concatenado com os anteriores.
+            if i == 0:
+                X_asymmetric[i] = data_x[i:i + 1]
+            else:
+                X_asymmetric[i] = vstack((X_asymmetric[i - 1], data_x[i:i + 1]))
+
             i += 1
 
-    # Se estivermos trabalhando com uma serie stateful, a unica demanda eh
-    # deslocar a entrada e a saida em uma unidade (a entrada eh tudo o que vimos
-    # ate agora e a saida eh o proximo step, que sera conhecido no passo seguinte).
+        # Apos acabar o loop while, convertemos a LISTA X_asymmetric em uma
+        # matriz ASSIMETRICA (cada elemento eh um array de tamanho diferente).
+        X_asymmetric = array(X_asymmetric, dtype=object)
+
+    # Se estivermos trabalhando com uma serie stateful simetrica, a unica
+    # demanda eh deslocar a entrada e a saida em uma unidade (a entrada eh tudo
+    # o que vimos ate agora e a saida eh o proximo step, que sera conhecido no
+    # passo seguinte).
     else:
         X = data_x[:-1]
         y = data_y[1:]
@@ -53,10 +85,13 @@ There is no stateful multivariate series option because, in this case, your inpu
     if is_classifier is True:
         y = where(y > threshold, 1.0, 0.0)
 
+    if enable_asymetrical is True:
+        return X_asymmetric, y
+
     return X, y
 
 
-class TimeSeriesSplitCV():
+class TimeSeriesSplitCV(object):
     def __init__(self, n_splits=5, training_percent=0.7, sampling_window_size=10, n_steps_prediction=1, stateful=False, is_classifier=False, threshold=1, blocking_split=False):
         """
 Time series split with cross validation separation as a compatible sklearn-like splitter.
@@ -79,6 +114,7 @@ There is no stateful multivariate series option because, in this case, your inpu
         :param threshold: Threshold for 'is_classifier' parameter. Float in the interval of your observed data 'data_y'.
         :return: X input and y observed data, formatted according to the given function parameters.
         """
+        super().__init__()
         self.n_splits = n_splits
         self.training_percent = training_percent
         self.sampling_window_size = sampling_window_size

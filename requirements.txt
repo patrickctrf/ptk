@@ -1,6 +1,5 @@
-cudatoolkit
 numpy
-pytorch
+torch
 tensorflow
 torchvision
 torchaudio

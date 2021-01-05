@@ -8,8 +8,8 @@ with open("requirements.txt") as file:
 
 
 setuptools.setup(
-    name="ptk",
-    version="0.0.4",
+    name="ptk-patrickctrf",
+    version="0.0.1",
     author="patrickctrf",
     author_email="patrickctrf@gmail.com",
     description="Package for Python programming by Patrick Ferreira",

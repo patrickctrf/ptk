@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 # Se nao houver requirements file, crie com os requisitos
-requirements = 'numpy\ntorch\ntensorflow\ntorchvision\ntorchaudio\n'
+requirements = 'numpy\ntorch\ntensorflow\n'
 
 try:
     # Trazemos os requirements atualizados do arquivo txt
@@ -26,7 +26,7 @@ finally:
 
 setuptools.setup(
     name="ptk-patrickctrf",
-    version="0.0.3",
+    version="0.0.4",
     author="patrickctrf",
     author_email="patrickctrf@gmail.com",
     description="Package for Python programming by Patrick Ferreira",

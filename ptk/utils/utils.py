@@ -5,7 +5,8 @@ from queue import Queue
 from threading import Thread, Event
 
 import torch
-from numpy import load, arange, random, array, int64, absolute, asarray
+from numpy import load, arange, random, array, int64, absolute, asarray, ones, argwhere, cumsum, hstack
+from pandas import read_csv
 from tensorflow.python.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
 from torch import from_numpy
@@ -237,19 +238,37 @@ Intended to be used as iterator.
 
 
 class DataManager(Thread):
-    def __init__(self, data_loader, buffer_size=3, device=torch.device("cpu"), data_type=torch.float32, stop_event=Event(), update_rate=1.0):
+    def __init__(self, data_loader, buffer_size=3, device=torch.device("cpu"), data_type=torch.float32):
+        """
+This manager intends to load a PyTorch dataloader like from disk into memory,
+reducing the acess time. It does not easily overflow memory, because we set a
+buffer size limiting how many samples will be loaded at once. Everytime a sample
+is consumed by the calling thread, another one is replaced in the
+buffer (unless we reach the end of dataloader).
+
+A manger may be called exactly like a dataloader, an it's based in an internal
+thread that loads samples into memory in parallel. This is specially useful
+when you are training in GPU and processor is almost idle.
+
+        :param data_loader: Base dataloader to load in parallel.
+        :param buffer_size: How many samples to keep loaded (caution to not overflow RAM). Default: 3.
+        :param device: Torch device to put samples in, like torch.device("cpu") (default). It saves time by transfering in parallel.
+        :param data_type: Automatically casts tensor type. Default: torch.float32.
+        """
         super().__init__()
         self.buffer_queue = Queue(maxsize=buffer_size)
         self.data_loader = data_loader
         self.buffer_size = buffer_size
         self.device = device
         self.data_type = data_type
-        self.stop_event = stop_event
-        self.update_rate = update_rate
 
         self.dataloader_finished = False
 
     def run(self):
+        """
+Runs the internal thread that iterates over the dataloader until fulfilling the
+buffer or the end of samples.
+        """
         for i, (x, y) in enumerate(self.data_loader):
             # Important to set before put in queue to avoid race condition
             # would happen if trying to get() in next() method before setting this flag
@@ -282,3 +301,76 @@ Intended to be used as iterator.
 
     def __len__(self):
         return len(self.data_loader)
+
+
+class AsymetricalTimeseriesDataset(Dataset):
+    def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, convert_first=False, device=torch.device("cpu")):
+        self.input_data = read_csv(x_csv_path).to_numpy()
+        self.output_data = read_csv(y_csv_path).to_numpy()
+        self.min_window_size = min_window_size
+        self.convert_first = convert_first
+        self.device = device
+
+        # Save timestamps for syncing samples.
+        self.input_timestamp = self.input_data[:, 0]
+        self.output_timestamp = self.output_data[:, 0]
+
+        # Throw out timestamp, we are not going to RETURN this.
+        self.input_data = self.input_data[:, 1:]
+        self.output_data = self.output_data[:, 1:]
+
+        # We are calculating the number of samples that each window size produces.
+        # We discount the window SIZE from the total number of samples (timeseries).
+        # P.S.: It MUST use OUTPUT shape, because unlabeled data doesnt not help us.
+        # P.S. 2: The first window_size is min_window_size, NOT 1.
+        n_samples_per_window_size = ones((max_window_size - min_window_size,)) * self.output_data.shape[0] - arange(min_window_size + 1, max_window_size + 1)
+
+        # Now, we know the last index where we can sample for each window size.
+        # Concatenate element [0] in the begining to avoid error on first indices.
+        self.last_window_sample_idx = hstack((array([0]), cumsum(n_samples_per_window_size))).astype("int")
+
+        self.length = int(n_samples_per_window_size.sum())
+        self.indices = arange(len(self))
+        return
+
+    def __getitem__(self, idx):
+        """
+Get itens from dataset according to idx passed. The return is in numpy arrays.
+
+        :param idx: Index or slice to return.
+        :return: 2 elements or 2 lists (x,y) values, according to idx.
+        """
+
+        # If we receive an index, return the sample.
+        # Else, if receiving an slice or array, return an slice or array from the samples.
+        if isinstance(idx, int) or isinstance(idx, int64):
+
+            if idx >= len(self) or idx < 0:
+                raise IndexError('Index out of range')
+
+            argwhere_result = argwhere(self.last_window_sample_idx < idx)
+            window_size = self.min_window_size + (argwhere_result[-1][0] if argwhere_result.size != 0 else 0)
+
+            window_start_idx = idx - self.last_window_sample_idx[(argwhere_result[-1][0] if argwhere_result.size != 0 else 0)]
+
+            _, x_start_idx = find_nearest(self.input_timestamp, self.output_timestamp[window_start_idx])
+            _, x_finish_idx = find_nearest(self.input_timestamp, self.output_timestamp[window_start_idx + window_size])
+
+            x = self.input_data[x_start_idx: x_finish_idx + 1]
+            y = self.output_data[window_start_idx + window_size] - self.output_data[window_start_idx]
+
+            # If we want to convert into torch tensors first
+            if self.convert_first is True:
+                return from_numpy(x.astype("float32")).to(self.device), \
+                       from_numpy(y.astype("float32")).to(self.device)
+            else:
+                return x, y
+        else:
+            # If we received a slice(e.g., 0:10:-1) instead an single index.
+            return self.__getslice__(idx)
+
+    def __getslice__(self, idx):
+        return list(zip(*[self[i] for i in self.indices[idx]]))
+
+    def __len__(self):
+        return self.length

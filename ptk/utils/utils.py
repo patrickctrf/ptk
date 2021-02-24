@@ -7,6 +7,7 @@ from threading import Thread, Event
 import torch
 from numpy import load, arange, random, array, int64, absolute, asarray, ones, argwhere, cumsum, hstack
 from pandas import read_csv
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from tensorflow.python.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
 from torch import from_numpy
@@ -304,12 +305,28 @@ Intended to be used as iterator.
 
 
 class AsymetricalTimeseriesDataset(Dataset):
-    def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, convert_first=False, device=torch.device("cpu")):
+    def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, convert_first=False, device=torch.device("cpu"), shuffle=True):
         self.input_data = read_csv(x_csv_path).to_numpy()
         self.output_data = read_csv(y_csv_path).to_numpy()
         self.min_window_size = min_window_size
         self.convert_first = convert_first
         self.device = device
+
+        # =========SCALING======================================================
+        # features without timestamp (we do not scale timestamp)
+        input_features = self.input_data[:, 1:]
+        output_features = self.output_data[:, 1:]
+
+        # Scaling data
+        self.input_scaler = StandardScaler()
+        input_features = self.input_scaler.fit_transform(input_features)
+        self.output_scaler = MinMaxScaler()
+        output_features = self.output_scaler.fit_transform(output_features)
+
+        # Replacing scaled data (we kept the original TIMESTAMP)
+        self.input_data[:, 1:] = input_features
+        self.output_data[:, 1:] = output_features
+        # =========end-SCALING==================================================
 
         # Save timestamps for syncing samples.
         self.input_timestamp = self.input_data[:, 0]
@@ -330,7 +347,11 @@ class AsymetricalTimeseriesDataset(Dataset):
         self.last_window_sample_idx = hstack((array([0]), cumsum(n_samples_per_window_size))).astype("int")
 
         self.length = int(n_samples_per_window_size.sum())
-        self.indices = arange(len(self))
+        self.indices = arange(self.length)
+
+        self.shuffle_array = arange(self.length)
+        if shuffle is True: random.shuffle(self.shuffle_array)
+
         return
 
     def __getitem__(self, idx):
@@ -347,6 +368,9 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
 
             if idx >= len(self) or idx < 0:
                 raise IndexError('Index out of range')
+
+            # shuffling indices before return
+            idx = self.shuffle_array[idx]
 
             argwhere_result = argwhere(self.last_window_sample_idx < idx)
             window_size = self.min_window_size + (argwhere_result[-1][0] if argwhere_result.size != 0 else 0)
@@ -369,8 +393,8 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
             # If we received a slice(e.g., 0:10:-1) instead an single index.
             return self.__getslice__(idx)
 
-    def __getslice__(self, idx):
-        return list(zip(*[self[i] for i in self.indices[idx]]))
+    def __getslice__(self, slice_from_indices):
+        return list(zip(*[self[i] for i in self.indices[slice_from_indices]]))
 
     def __len__(self):
         return self.length

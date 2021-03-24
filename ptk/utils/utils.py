@@ -12,7 +12,7 @@ from tensorflow.python.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
 from torch import from_numpy, cat
 from torch.nn.utils.rnn import pack_sequence
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
 
@@ -472,3 +472,23 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
 
     def __len__(self):
         return self.length
+
+
+class CustomDataLoader(object):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        self.dataloader = DataLoader(*args, **kwargs)
+        self.iterable = None
+
+    def __iter__(self):
+        self.iterable = iter(self.dataloader)
+        return self
+
+    def __len__(self):
+        return len(self.dataloader)
+
+    def __next__(self):
+        next_sample = next(self.iterable)
+        return next_sample[0].view(next_sample[0].shape[1:]), \
+               next_sample[1].view(next_sample[1].shape[1:])

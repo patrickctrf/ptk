@@ -443,7 +443,7 @@ class BatchTimeseriesDataset(Dataset):
         for i in range(tabela.min().astype("int"), tabela.max().astype("int") + 1):
             self.lista_de_arrays_com_mesmo_comprimento.extend(
                 array_split(where(tabela == i)[0],
-                            where(tabela == i)[0].shape[0] // self.batch_size)
+                            where(tabela == i)[0].shape[0] // self.batch_size + (where(tabela == i)[0].shape[0] % self.batch_size > 0))
             )
 
         self.length = len(self.lista_de_arrays_com_mesmo_comprimento)

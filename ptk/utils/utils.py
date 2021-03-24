@@ -2,17 +2,18 @@ import glob
 import os
 import shutil
 from queue import Queue
-from threading import Thread, Event
+from threading import Thread
 
 import torch
-from numpy import load, arange, random, array, int64, absolute, asarray, ones, argwhere, cumsum, hstack
+from numpy import load, arange, random, array, int64, absolute, asarray, ones, argwhere, cumsum, hstack, save, zeros, where, array_split
 from pandas import read_csv
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from tensorflow.python.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
-from torch import from_numpy
+from torch import from_numpy, cat
 from torch.nn.utils.rnn import pack_sequence
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 def split_into_chunks(lista, split_dims):
@@ -306,6 +307,7 @@ Intended to be used as iterator.
 
 class AsymetricalTimeseriesDataset(Dataset):
     def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, convert_first=False, device=torch.device("cpu"), shuffle=True):
+        super().__init__()
         self.input_data = read_csv(x_csv_path).to_numpy()
         self.output_data = read_csv(y_csv_path).to_numpy()
         self.min_window_size = min_window_size
@@ -395,6 +397,78 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
 
     def __getslice__(self, slice_from_indices):
         return list(zip(*[self[i] for i in self.indices[slice_from_indices]]))
+
+    def __len__(self):
+        return self.length
+
+
+class BatchTimeseriesDataset(Dataset):
+    def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, convert_first=False, device=torch.device("cpu"), shuffle=False, batch_size=1):
+        super().__init__()
+        self.batch_size = batch_size
+
+        self.base_dataset = \
+            AsymetricalTimeseriesDataset(x_csv_path=x_csv_path,
+                                         y_csv_path=y_csv_path,
+                                         max_window_size=max_window_size,
+                                         min_window_size=min_window_size,
+                                         convert_first=convert_first,
+                                         device=device,
+                                         shuffle=shuffle)
+
+        try:
+            tabela = load("tabela_elementos_dataset.npy")
+
+        except FileNotFoundError as e:
+            tabela = zeros((len(self.base_datasetdataset),))
+            i = 0
+            for element in tqdm(self.base_dataset):
+                tabela[i] = element[0].shape[0]
+                i = i + 1
+            save("tabela_elementos_dataset.npy", tabela)
+
+        # dict_count = Counter(tabela)
+        # ocorrencias = array(list(dict_count.values()))
+
+        # Os arrays nesta lista contem INDICES para elementos do dataset com
+        # mesmo comprimento.
+        self.lista_de_arrays_com_mesmo_comprimento = []
+
+        # grupos de arrays com mesmo comprimento.
+        # Eles serao separados em batches, entao alguns
+        # batches sao de arrays com mesmo comprimento que outros. Alguns
+        # batches serao um pouco maiores, pois a quantidade de elementos com o
+        # mesmo tamanho talvez nao seja um multiplo inteiro do batch_size
+        # escolhido
+        for i in range(tabela.min().astype("int"), tabela.max().astype("int") + 1):
+            self.lista_de_arrays_com_mesmo_comprimento.extend(
+                array_split(where(tabela == i)[0],
+                            where(tabela == i)[0].shape[0] // self.batch_size)
+            )
+
+        self.length = len(self.lista_de_arrays_com_mesmo_comprimento)
+
+        return
+
+    def __getitem__(self, idx):
+        """
+Get itens from dataset according to idx passed. The return is in numpy arrays.
+
+        :param idx: Index to return.
+        :return: 2 elements (batches), according to idx.
+        """
+
+        # concatenate tensor in order to assemble batches
+        x_batch = \
+            cat([self.base_dataset[dataset_element_idx][0].unsqueeze(0)
+                 for dataset_element_idx
+                 in self.lista_de_arrays_com_mesmo_comprimento[idx]], 0)
+        y_batch = \
+            cat([self.base_dataset[dataset_element_idx][1].unsqueeze(0)
+                 for dataset_element_idx
+                 in self.lista_de_arrays_com_mesmo_comprimento[idx]], 0)
+
+        return x_batch, y_batch
 
     def __len__(self):
         return self.length

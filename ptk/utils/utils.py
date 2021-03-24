@@ -403,7 +403,7 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
 
 
 class BatchTimeseriesDataset(Dataset):
-    def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, convert_first=False, device=torch.device("cpu"), shuffle=False, batch_size=1):
+    def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, convert_first=False, device=torch.device("cpu"), shuffle=True, batch_size=1):
         super().__init__()
         self.batch_size = batch_size
 
@@ -448,6 +448,11 @@ class BatchTimeseriesDataset(Dataset):
 
         self.length = len(self.lista_de_arrays_com_mesmo_comprimento)
 
+        self.shuffle_array = arange(self.length)
+
+        if shuffle is True:
+            random.shuffle(self.shuffle_array)
+
         return
 
     def __getitem__(self, idx):
@@ -457,6 +462,10 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
         :param idx: Index to return.
         :return: 2 elements (batches), according to idx.
         """
+
+        # If we are shuffling indices, we do it here. Else, we'll just get the
+        # same index back
+        idx = self.shuffle_array[idx]
 
         # concatenate tensor in order to assemble batches
         x_batch = \

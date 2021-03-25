@@ -414,7 +414,7 @@ class BatchTimeseriesDataset(Dataset):
                                          min_window_size=min_window_size,
                                          convert_first=convert_first,
                                          device=device,
-                                         shuffle=shuffle)
+                                         shuffle=False)
 
         try:
             tabela = load("tabela_elementos_dataset.npy")

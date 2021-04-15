@@ -403,7 +403,7 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
 
 
 class BatchTimeseriesDataset(Dataset):
-    def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, convert_first=False, device=torch.device("cpu"), shuffle=True, batch_size=1):
+    def __init__(self, x_csv_path, y_csv_path, max_window_size=200, min_window_size=10, shuffle=True, batch_size=1):
         super().__init__()
         self.batch_size = batch_size
 
@@ -412,15 +412,15 @@ class BatchTimeseriesDataset(Dataset):
                                          y_csv_path=y_csv_path,
                                          max_window_size=max_window_size,
                                          min_window_size=min_window_size,
-                                         convert_first=convert_first,
-                                         device=device,
+                                         convert_first=True,
+                                         device=torch.device("cpu"),
                                          shuffle=False)
 
         try:
             tabela = load("tabela_elementos_dataset.npy")
 
         except FileNotFoundError as e:
-            tabela = zeros((len(self.base_datasetdataset),))
+            tabela = zeros((len(self.base_dataset),))
             i = 0
             for element in tqdm(self.base_dataset):
                 tabela[i] = element[0].shape[0]

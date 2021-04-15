@@ -10,7 +10,7 @@ from pandas import read_csv
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from tensorflow.python.keras.callbacks import ModelCheckpoint, CSVLogger
 from tensorflow.python.keras.callbacks_v1 import TensorBoard
-from torch import from_numpy, cat
+from torch import from_numpy, cat, tensor
 from torch.nn.utils.rnn import pack_sequence
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
@@ -253,7 +253,7 @@ thread that loads samples into memory in parallel. This is specially useful
 when you are training in GPU and processor is almost idle.
 
         :param data_loader: Base dataloader to load in parallel.
-        :param buffer_size: How many samples to keep loaded (caution to not overflow RAM). Default: 3.
+        :param buffer_size: How many samples to keep loaded (caution to not overflow RAM). Must be integer > 0. Default: 3.
         :param device: Torch device to put samples in, like torch.device("cpu") (default). It saves time by transfering in parallel.
         :param data_type: Automatically casts tensor type. Default: torch.float32.
         """
@@ -277,8 +277,8 @@ buffer or the end of samples.
             if i >= len(self) - 1:
                 self.dataloader_finished = True
 
-            self.buffer_queue.put([x.to(self.data_type).to(self.device),
-                                   y.to(self.data_type).to(self.device)])
+            self.buffer_queue.put([tensor(x, dtype=self.data_type, device=self.device),
+                                   tensor(y, dtype=self.data_type, device=self.device)])
 
     def __iter__(self):
         """

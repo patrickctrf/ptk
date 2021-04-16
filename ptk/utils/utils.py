@@ -277,8 +277,8 @@ buffer or the end of samples.
             if i >= len(self) - 1:
                 self.dataloader_finished = True
 
-            self.buffer_queue.put([tensor(x, dtype=self.data_type, device=self.device),
-                                   tensor(y, dtype=self.data_type, device=self.device)])
+            self.buffer_queue.put([x.to(dtype=self.data_type, device=self.device),
+                                   y.to(dtype=self.data_type, device=self.device)])
 
     def __iter__(self):
         """

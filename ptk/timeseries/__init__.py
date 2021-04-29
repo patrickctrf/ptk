@@ -1,4 +1,4 @@
 from .timeseries import *
 
-__all__ = ["timeseries_dataloader", "TimeSeriesSplitCV"]
+__all__ = ["timeseries_split", "TimeSeriesSplitCV"]
 

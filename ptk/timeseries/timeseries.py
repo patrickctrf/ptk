@@ -1,7 +1,7 @@
 from numpy import ones, where, array, array_split, hstack, vstack
 
 
-def timeseries_dataloader(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, enable_asymetrical=False, is_classifier=False, threshold=1):
+def timeseries_split(data_x, data_y=None, sampling_window_size=10, n_steps_prediction=1, stateful=False, enable_asymetrical=False, is_classifier=False, threshold=1):
     """
 Split the given time series into input (X) and observed (y) data.
 There are 3 principal modes of splitting data with this function: Stateful univariate series, non stateful univariate series, and non stateful multivariate series.
@@ -15,7 +15,7 @@ There is no stateful multivariate series option because, in this case, your inpu
 
     :param data_x: array-like input data from your series.
     :param data_y: array-like observed data (target) for your series. Let it be 'None' if dealing with a single component (univariate) series.
-    :param sampling_window_size: Size of window sampling (W) or time steps entering your network for each prediction. Must be positive integer.
+    :param sampling_window_size: Size of window sampling (W) or time steps entering your network for each prediction. Must be positive integer. Ignored if enable_asymetrical is True.
     :param n_steps_prediction: How many steps it is going to predict ahead. Must be positive integer.
     :param stateful: True or False, indicating whether your network are suposedto work statefully or not, respectively.
     :param enable_asymetrical: Whenever to return asymetrical sequences in X output data.

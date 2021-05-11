@@ -46,18 +46,19 @@ There is no stateful multivariate series option because, in this case, your inpu
 
     if stateful is False or enable_asymetrical is True:
         # arrays para armazenar as saidas
-        X = ones((data_x.shape[0] - n_steps_prediction - sampling_window_size, sampling_window_size) + data_x.shape[1:])
-        y = ones((data_y.shape[0] - n_steps_prediction - sampling_window_size, n_steps_prediction) + data_y.shape[1:])
+        # Teremos a quantidade de samples - quantos steps prevemos a frente - o tamanho da janela de predicao + 1 (porque a predicao eh feita sobre ultimo elemento da janela).
+        X = ones((1 + data_x.shape[0] - n_steps_prediction - sampling_window_size, sampling_window_size) + data_x.shape[1:])
+        y = ones((1 + data_y.shape[0] - n_steps_prediction - sampling_window_size, n_steps_prediction) + data_y.shape[1:])
 
         # Para o caso assimetrico, X tera arrays de tamanhos diferentes e
         # precisamos portnto de uma lista para armazena-los antes de converter
         # em uma matriz assimetrica numpy.
-        X_asymmetric = (data_x.shape[0] - n_steps_prediction - sampling_window_size) * [0]
+        X_asymmetric = (1 + data_x.shape[0] - n_steps_prediction - sampling_window_size) * [0]
 
         i = 0
         # Precisamos de N amostras (sampling_window_size) e as amostras de
         # ground truth (n_steps_prediction) para fazer mais um split.
-        while i < data_x.shape[0] - n_steps_prediction - sampling_window_size:
+        while i < 1 + data_x.shape[0] - n_steps_prediction - sampling_window_size:
             X[i] = (data_x[i:i + sampling_window_size])
             y[i] = (data_y[i + sampling_window_size:(i + sampling_window_size) + n_steps_prediction])
 

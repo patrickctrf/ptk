@@ -35,7 +35,6 @@ index in the original array.
     :param value: Value to find closest element.
     :return: Tuple (Element value, element index).
     """
-    array_to_search = asarray(array_to_search)
     idx = (absolute(array_to_search - value)).argmin()
     return array_to_search[idx], idx
 

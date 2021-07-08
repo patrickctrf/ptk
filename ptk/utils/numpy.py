@@ -44,7 +44,7 @@ https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     :return: (Axis of rotation (3-element tensor), Simple rotation angle (float or 1-element tensor))
     """
     # Simple rotation angle
-    angle = np.arccos(quaternion[0]) * 2
+    angle = np.nan_to_num(np.arccos(quaternion[0])) * 2
 
     # Avoids recalculating this sin.
     sin_angle_2 = np.sin(angle / 2)
@@ -99,7 +99,9 @@ Converts a 3x3 rotation matrix into equivalent axis-angle rotation.
     """
     # Converts R orientation matrix into equivalent skew matrix. SO(3) -> so(3)
     # phi is a simple rotation angle (the value in radians of the angle of rotation)
-    phi = np.arccos((np.trace(r_matrix) - 1) / 2)
+    if (np.trace(r_matrix) - 1) / 2 > 1 or (np.trace(r_matrix) - 1) / 2 < -1:
+        print("valor fora do range: ", (np.trace(r_matrix) - 1) / 2)
+    phi = np.nan_to_num(np.arccos((np.trace(r_matrix) - 1) / 2))
 
     # Skew "orientation" matrix into axis-angles tensor (3-element).
     # we do not multiply by phi, so we have a normalized rotation AXIS (in a SKEW matrix yet)

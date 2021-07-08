@@ -50,7 +50,7 @@ https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     :return: (Axis of rotation (3-element tensor), Simple rotation angle (float or 1-element tensor))
     """
     # Simple rotation angle
-    angle = torch.acos(quaternion[0]) * 2
+    angle = torch.nan_to_num(torch.arccos(quaternion[0])) * 2
 
     # Avoids recalculating this sin.
     sin_angle_2 = torch.sin(angle / 2)
@@ -113,7 +113,7 @@ Converts a 3x3 rotation matrix into equivalent axis-angle rotation.
     """
     # Converts R orientation matrix into equivalent skew matrix. SO(3) -> so(3)
     # phi is a simple rotation angle (the value in radians of the angle of rotation)
-    phi = torch.arccos((torch.trace(r_matrix) - 1) / 2)
+    phi = torch.nan_to_num(torch.arccos((torch.trace(r_matrix) - 1) / 2))
 
     # Skew "orientation" matrix into axis-angles tensor (3-element).
     # we do not multiply by phi, so we have a normalized rotation AXIS (in a SKEW matrix yet)

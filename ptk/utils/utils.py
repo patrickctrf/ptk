@@ -4,9 +4,6 @@ from threading import Thread
 
 import numpy as np
 import torch
-from numpy import load, array, int64, absolute
-from torch import from_numpy
-from torch.utils.data import Dataset
 
 
 def split_into_chunks(lista, split_dims):
@@ -26,117 +23,7 @@ original list length is not divisible by 'split_dims'.
     return aux_list
 
 
-def find_nearest(array_to_search, value):
-    """
-This function takes 1 array as first argument and a value to find the element
-in array whose value is the closest. Returns the closest value element and its
-index in the original array.
-
-    :param array_to_search: Reference array.
-    :param value: Value to find closest element.
-    :return: Tuple (Element value, element index).
-    """
-    idx = (ggitabsolute(array_to_search - value)).argmin()
-    return array_to_search[idx], idx
-
-
-def axis_angle_into_quaternion(normalized_axis, angle):
-    """
-Takes an axis-angle rotation and converts into quaternion rotation.
-https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-
-    :param normalized_axis: Axis of rotation (3-element array).
-    :param angle: Simple rotation angle (float or 1-element array).
-    :return: 4-element array, containig quaternion (q0,q1,q2,q3).
-    """
-    # From axis-angle notation into quaternion notation.
-    # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-    quaternion_orientation_r = np.zeros((4,))
-    quaternion_orientation_r[0] = np.cos(angle / 2)
-    quaternion_orientation_r[1] = np.sin(angle / 2) * normalized_axis[0]
-    quaternion_orientation_r[2] = np.sin(angle / 2) * normalized_axis[1]
-    quaternion_orientation_r[3] = np.sin(angle / 2) * normalized_axis[2]
-
-    return quaternion_orientation_r
-
-
-def quaternion_into_axis_angle(quaternion):
-    """
-Takes an quaternion rotation and converts into axis-angle rotation.
-https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-
-    :param quaternion: 4-element tensor, containig quaternion (q0,q1,q2,q3).
-    :return: (Axis of rotation (3-element tensor), Simple rotation angle (float or 1-element tensor))
-    """
-    # Simple rotation angle
-    angle = torch.acos(quaternion[0]) * 2
-
-    # Avoids recalculating this sin.
-    sin_angle_2 = torch.sin(angle / 2)
-
-    # Rotation axis
-    normalized_axis = torch.zeros((3,))
-    normalized_axis[0] = quaternion[1] / sin_angle_2
-    normalized_axis[1] = quaternion[2] / sin_angle_2
-    normalized_axis[2] = quaternion[3] / sin_angle_2
-
-    return normalized_axis, angle
-
-
-def skew_matrix_from_array(x):
-    """
-Receives a 3-element array and return its respective skew matrix.
-
-    :param x: 3-element array.
-    :return: Respective skew-matrix (3x3)
-    """
-    return np.array([
-        [0, -x[2], x[1]],
-        [x[2], 0, -x[0]],
-        [-x[1], x[0], 0],
-    ])
-
-
-def array_from_skew_matrix(x):
-    """
-Receives a skew matrix and returns its associated 3-element vector (array).
-
-    :param x: Skew matrix (3x3)
-    :return: Associated array (3-element).
-    """
-    return np.array([x[2][1], x[0][2], x[1][0]])
-
-
-def exp_matrix(skew_matrix):
-    norma = np.linalg.norm(skew_matrix)
-
-    return np.eye(N=3, M=3) + \
-           (np.sin(norma) / norma) * skew_matrix + \
-           (1 - np.cos(norma)) / (norma ** 2) * np.matmul(skew_matrix, skew_matrix)
-
-
-def rotation_matrix_into_axis_angle(r_matrix):
-    """
-Converts a 3x3 rotation matrix into equivalent axis-angle rotation.
-
-    :param r_matrix: 3x3 rotation matrix (array).
-    :return: Tuple -> (normalized_axis (3-element array), rotation angle)
-    """
-    # Converts R orientation matrix into equivalent skew matrix. SO(3) -> so(3)
-    # phi is a simple rotation angle (the value in radians of the angle of rotation)
-    phi = np.arccos((np.trace(r_matrix) - 1) / 2)
-
-    # Skew "orientation" matrix into axis-angles tensor (3-element).
-    # we do not multiply by phi, so we have a normalized rotation AXIS (in a SKEW matrix yet)
-    # normalized because we didnt multiply the axis by the rotation angle (phi)
-    return array_from_skew_matrix((r_matrix - r_matrix.T) / (2 * np.sin(phi))), phi
-
-
-def axis_angle_into_rotation_matrix(normalized_axis, angle):
-    return exp_matrix(skew_matrix_from_array(normalized_axis * angle))
-
-
-class GenericDatasetFromFiles(Dataset):
+class GenericDatasetFromFiles(torch.utils.data.Dataset):
     def __init__(self, data_path="", convert_first=False, mmap_mode=None, transform=None, device=torch.device("cpu")):
         """
 Dataset class loader in PyTorch pattern. It expects data in the NPZ file format
@@ -151,13 +38,13 @@ Dataset class loader in PyTorch pattern. It expects data in the NPZ file format
         PyTorch's device (torch.device("cuda:0"), for example). Default: torch.device("cpu")
         """
         super().__init__()
-        self.x_dictionary = load(os.path.join(data_path, "x_data.npz"), mmap_mode=mmap_mode)
-        self.y_dictionary = load(os.path.join(data_path, "y_data.npz"), mmap_mode=mmap_mode)
+        self.x_dictionary = np.load(os.path.join(data_path, "x_data.npz"), mmap_mode=mmap_mode)
+        self.y_dictionary = np.load(os.path.join(data_path, "y_data.npz"), mmap_mode=mmap_mode)
         self.length = len(self.x_dictionary)
         self.convert_first = convert_first
 
-        self.x_dictionary_files = array(self.x_dictionary.files)
-        self.y_dictionary_files = array(self.y_dictionary.files)
+        self.x_dictionary_files = np.array(self.x_dictionary.files)
+        self.y_dictionary_files = np.array(self.y_dictionary.files)
 
         self.device = device
 
@@ -200,7 +87,7 @@ Get itens from dataset according to idx passed. The return is in numpy arrays.
             return self.__get_as_tensor__(idx)
         # If we receive an index, return the sample.
         # Else, if receiving an slice or array, return an slice or array from the samples.
-        if isinstance(idx, int) or isinstance(idx, int64):
+        if isinstance(idx, int) or isinstance(idx, np.int64):
             return self.x_dictionary["arr_" + str(idx)].astype("float32"), self.y_dictionary["arr_" + str(idx)].astype("float32")
         else:
             return [self.x_dictionary[file_name].astype("float32") for file_name in self.x_dictionary_files[idx]], \
@@ -216,10 +103,10 @@ Same as __getitem__, but converting the return into torch.Tensor.
         # If we receive an index, return the sample.
         # Else, if receiving an slice or array, return an slice or array from the samples.
         if isinstance(idx, int):
-            return from_numpy(self.x_dictionary["arr_" + str(idx)].astype("float32")).to(self.device), from_numpy(self.y_dictionary["arr_" + str(idx)].astype("float32")).to(self.device)
+            return torch.from_numpy(self.x_dictionary["arr_" + str(idx)].astype("float32")).to(self.device), torch.from_numpy(self.y_dictionary["arr_" + str(idx)].astype("float32")).to(self.device)
         else:
-            return [from_numpy(self.x_dictionary[file_name].astype("float32")).to(self.device) for file_name in self.x_dictionary_files[idx]], \
-                   [from_numpy(self.y_dictionary[file_name].astype("float32")).to(self.device) for file_name in self.y_dictionary_files[idx]]
+            return [torch.from_numpy(self.x_dictionary[file_name].astype("float32")).to(self.device) for file_name in self.x_dictionary_files[idx]], \
+                   [torch.from_numpy(self.y_dictionary[file_name].astype("float32")).to(self.device) for file_name in self.y_dictionary_files[idx]]
 
 
 class DataManager(Thread):

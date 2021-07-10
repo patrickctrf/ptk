@@ -30,11 +30,11 @@ https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     """
     # From axis-angle notation into quaternion notation.
     # https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-    quaternion_orientation_r = torch.zeros((4,), device=device, dtype=dtype)
-    quaternion_orientation_r[0] = torch.cos(angle / 2)
-    quaternion_orientation_r[1] = torch.sin(angle / 2) * normalized_axis[0]
-    quaternion_orientation_r[2] = torch.sin(angle / 2) * normalized_axis[1]
-    quaternion_orientation_r[3] = torch.sin(angle / 2) * normalized_axis[2]
+    quaternion_orientation_r = torch.zeros((angle.shape[0], 4,), device=device, dtype=dtype)
+    quaternion_orientation_r[:, 0] = torch.cos(angle / 2)
+    quaternion_orientation_r[:, 1] = torch.sin(angle / 2) * normalized_axis[:, 0]
+    quaternion_orientation_r[:, 2] = torch.sin(angle / 2) * normalized_axis[:, 1]
+    quaternion_orientation_r[:, 3] = torch.sin(angle / 2) * normalized_axis[:, 2]
 
     return quaternion_orientation_r
 
@@ -50,16 +50,16 @@ https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     :return: (Axis of rotation (3-element tensor), Simple rotation angle (float or 1-element tensor))
     """
     # Simple rotation angle
-    angle = torch.nan_to_num(torch.arccos(quaternion[0])) * 2
+    angle = torch.nan_to_num(torch.arccos(quaternion[:, 0])) * 2
 
     # Avoids recalculating this sin.
     sin_angle_2 = torch.sin(angle / 2)
 
     # Rotation axis
-    normalized_axis = torch.zeros((3,), device=device, dtype=dtype)
-    normalized_axis[0] = quaternion[1] / sin_angle_2
-    normalized_axis[1] = quaternion[2] / sin_angle_2
-    normalized_axis[2] = quaternion[3] / sin_angle_2
+    normalized_axis = torch.zeros((quaternion.shape[0], 3,), device=device, dtype=dtype)
+    normalized_axis[:, 0] = quaternion[:, 1] / sin_angle_2
+    normalized_axis[:, 1] = quaternion[:, 2] / sin_angle_2
+    normalized_axis[:, 2] = quaternion[:, 3] / sin_angle_2
 
     return normalized_axis, angle
 
@@ -73,11 +73,15 @@ Receives a 3-element array and return its respective skew matrix.
     :param device: Device to allocate new tensors. Default: torch.device("cpu").
     :param dtype: Data type for new tensors. Default: torch.float32.
     """
-    return torch.tensor([
-        [0, -x[2], x[1]],
-        [x[2], 0, -x[0]],
-        [-x[1], x[0], 0],
-    ], device=device, dtype=dtype)
+
+    # zeros with the same batch size
+    zeros = torch.zeros((x.shape[0], 1), device=device, dtype=dtype)
+
+    return torch.stack((
+        torch.hstack((zeros, -x[:, 2:], x[:, 1:2])),
+        torch.hstack((x[:, 2:], zeros, -x[:, 0:1])),
+        torch.hstack((-x[:, 1:2], x[:, 0:1], zeros)),
+    ), dim=1)
 
 
 def array_from_skew_matrix(x, device=torch.device("cpu"), dtype=torch.float32):
@@ -89,16 +93,21 @@ Receives a skew matrix and returns its associated 3-element vector (array).
     :param device: Device to allocate new tensors. Default: torch.device("cpu").
     :param dtype: Data type for new tensors. Default: torch.float32.
     """
-    return torch.tensor([x[2][1], x[0][2], x[1][0]],
-                        device=device, dtype=dtype)
+    # We are only slicing the last index in order to keep last dimension.
+    return torch.hstack((x[:, 2, 1:2], x[:, 0, 2:], x[:, 1, 0:1]))
 
 
 def exp_matrix(skew_matrix, device=torch.device("cpu"), dtype=torch.float32):
-    norma = torch.linalg.norm(skew_matrix)
+    # Reshape necessary to accept multiplication by matrix.
+    norma = torch.linalg.norm(skew_matrix, dim=(-2, -1)).view(-1, 1, 1)
 
-    return torch.eye(n=3, m=3, device=device, dtype=dtype) + \
-           (torch.sin(norma) / norma) * skew_matrix + \
-           (1 - torch.cos(norma)) / (norma ** 2) * torch.matmul(skew_matrix, skew_matrix)
+    x = 9
+
+    returno = torch.eye(n=3, m=3, device=device, dtype=dtype) + \
+              (torch.sin(norma) / norma) * skew_matrix + \
+              (1 - torch.cos(norma)) / (norma ** 2) * torch.matmul(skew_matrix, skew_matrix)
+
+    return returno
 
 
 def rotation_matrix_into_axis_angle(r_matrix, device=torch.device("cpu"), dtype=torch.float32):
@@ -113,12 +122,13 @@ Converts a 3x3 rotation matrix into equivalent axis-angle rotation.
     """
     # Converts R orientation matrix into equivalent skew matrix. SO(3) -> so(3)
     # phi is a simple rotation angle (the value in radians of the angle of rotation)
-    phi = torch.nan_to_num(torch.arccos((torch.trace(r_matrix) - 1) / 2))
+    # torch.einsum('bii->b', a) gives r_matrix trace in a batch of matrices.
+    phi = torch.nan_to_num(torch.arccos((torch.einsum('bii->b', r_matrix) - 1) / 2))
 
     # Skew "orientation" matrix into axis-angles tensor (3-element).
     # we do not multiply by phi, so we have a normalized rotation AXIS (in a SKEW matrix yet)
     # normalized because we didnt multiply the axis by the rotation angle (phi)
-    return array_from_skew_matrix((r_matrix - r_matrix.T) / (2 * torch.sin(phi)), device=device, dtype=dtype), phi
+    return array_from_skew_matrix((r_matrix - r_matrix.movedim(-2, -1)) / (2 * torch.sin(phi)), device=device, dtype=dtype), phi
 
 
 def axis_angle_into_rotation_matrix(normalized_axis, angle, device=torch.device("cpu"), dtype=torch.float32):

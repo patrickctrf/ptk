@@ -123,12 +123,13 @@ Converts a 3x3 rotation matrix into equivalent axis-angle rotation.
     # Converts R orientation matrix into equivalent skew matrix. SO(3) -> so(3)
     # phi is a simple rotation angle (the value in radians of the angle of rotation)
     # torch.einsum('bii->b', a) gives r_matrix trace in a batch of matrices.
-    phi = torch.nan_to_num(torch.arccos((torch.einsum('bii->b', r_matrix) - 1) / 2))
+    phi = torch.nan_to_num(torch.arccos((torch.einsum('bii->b', r_matrix) - 1) / 2).view(-1, 1, 1))
 
     # Skew "orientation" matrix into axis-angles tensor (3-element).
     # we do not multiply by phi, so we have a normalized rotation AXIS (in a SKEW matrix yet)
     # normalized because we didnt multiply the axis by the rotation angle (phi)
-    return array_from_skew_matrix((r_matrix - r_matrix.movedim(-2, -1)) / (2 * torch.sin(phi)), device=device, dtype=dtype), phi
+    aux = 2 * torch.sin(phi)
+    return array_from_skew_matrix((r_matrix - r_matrix.movedim(1, 2)) / torch.where(aux == 0, torch.tensor(0.000001, device=device, dtype=dtype), aux), device=device, dtype=dtype), phi[:, 0, 0]
 
 
 def axis_angle_into_rotation_matrix(normalized_axis, angle, device=torch.device("cpu"), dtype=torch.float32):

@@ -5,6 +5,9 @@ from threading import Thread
 import numpy as np
 import torch
 
+__all__ = ["split_into_chunks", "GenericDatasetFromFiles",
+           "DataManager"]
+
 
 def split_into_chunks(lista, split_dims):
     """

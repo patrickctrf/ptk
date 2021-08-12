@@ -3,7 +3,35 @@ import numpy as np
 __all__ = ["find_nearest", "axis_angle_into_quaternion",
            "quaternion_into_axis_angle", "skew_matrix_from_array",
            "array_from_skew_matrix", "exp_matrix",
-           "rotation_matrix_into_axis_angle", "axis_angle_into_rotation_matrix"]
+           "rotation_matrix_into_axis_angle", "axis_angle_into_rotation_matrix",
+           "hamilton_product"]
+
+
+def hamilton_product(q1, q2):
+    """
+Performs composition of two quaternions by Hamilton product. This is equivalent
+of a rotation descried by quaternion_1 (q1), followed by quaternion_2 (q2).
+
+https://en.wikipedia.org/wiki/Quaternion#Hamilton_product
+
+    :param q1: 4-item iterable representing unit quaternion.
+    :param q2: 4-item iterable representing unit quaternion.
+    :return: Resulting quaternion.
+    """
+    a1 = q1[0]
+    b1 = q1[1]
+    c1 = q1[2]
+    d1 = q1[3]
+
+    a2 = q2[0]
+    b2 = q2[1]
+    c2 = q2[2]
+    d2 = q2[3]
+
+    return a1 * a2 - b1 * b2 - c1 * c2 - d1 * d2, \
+           a1 * b2 + b1 * a2 + c1 * d2 - d1 * c2, \
+           a1 * c2 - b1 * d2 + c1 * a2 + d1 * b2, \
+           a1 * b2 + b1 * c2 - c1 * b2 + d1 * a2
 
 
 def find_nearest(array_to_search, value):

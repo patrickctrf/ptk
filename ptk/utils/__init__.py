@@ -1,6 +1,5 @@
+from . import torchtools, numpytools
 from .utils import *
-from .numpytools import *
-from .torchtools import *
 
 # "axis_angle_into_quaternion",
 #            "quaternion_into_axis_angle", "skew_matrix_from_array",

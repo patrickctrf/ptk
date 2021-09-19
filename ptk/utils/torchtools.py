@@ -94,7 +94,7 @@ https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     normalized_axis[:, 1] = quaternion[:, 2] / sin_angle_2
     normalized_axis[:, 2] = quaternion[:, 3] / sin_angle_2
 
-    return normalized_axis, angle
+    return normalized_axis, angle.view(-1, 1)  # add feature dimension
 
 
 def skew_matrix_from_array(x, device=torch.device("cpu"), dtype=torch.float32):

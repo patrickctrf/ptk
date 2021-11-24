@@ -2,7 +2,7 @@ import torch
 
 __all__ = ["find_nearest", "axis_angle_into_quaternion",
            "quaternion_into_axis_angle", "skew_matrix_from_array",
-           "array_from_skew_matrix", "exp_matrix",
+           "array_from_skew_matrix",
            "rotation_matrix_into_axis_angle", "axis_angle_into_rotation_matrix",
            "hamilton_product"]
 
@@ -88,6 +88,9 @@ https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     # Avoids recalculating this sin.
     sin_angle_2 = torch.sin(angle / 2)
 
+    # Replace zero values. Avoid numerical issues.
+    sin_angle_2[sin_angle_2 == 0] = 0.0001
+
     # Rotation axis
     normalized_axis = torch.zeros((quaternion.shape[0], 3,), device=device, dtype=dtype)
     normalized_axis[:, 0] = quaternion[:, 1] / sin_angle_2
@@ -130,17 +133,19 @@ Receives a skew matrix and returns its associated 3-element vector (array).
     return torch.hstack((x[:, 2, 1:2], x[:, 0, 2:], x[:, 1, 0:1]))
 
 
-def exp_matrix(skew_matrix, device=torch.device("cpu"), dtype=torch.float32):
-    # Reshape necessary to accept multiplication by matrix.
-    norma = torch.linalg.norm(skew_matrix, dim=(-2, -1)).view(-1, 1, 1)
-
-    x = 9
-
-    returno = torch.eye(n=3, m=3, device=device, dtype=dtype) + \
-              (torch.sin(norma) / norma) * skew_matrix + \
-              (1 - torch.cos(norma)) / (norma ** 2) * torch.matmul(skew_matrix, skew_matrix)
-
-    return returno
+# # ERRADA!!!!!!!!!!!!!!!!!#
+# def exp_matrix(skew_matrix, device=torch.device("cpu"), dtype=torch.float32):
+#     # ERRADA!!!!!!!!!!!!!!!!!#
+#     # Reshape necessary to accept multiplication by matrix.
+#     norma = torch.linalg.norm(skew_matrix, dim=(-2, -1)).view(-1, 1, 1)
+#
+#     x = 9
+#
+#     returno = torch.eye(n=3, m=3, device=device, dtype=dtype) + \
+#               (torch.sin(norma) / norma) * skew_matrix + \
+#               (1 - torch.cos(norma)) / (norma ** 2) * torch.matmul(skew_matrix, skew_matrix)
+#
+#     return returno
 
 
 def rotation_matrix_into_axis_angle(r_matrix, device=torch.device("cpu"), dtype=torch.float32):
@@ -166,4 +171,4 @@ Converts a 3x3 rotation matrix into equivalent axis-angle rotation.
 
 
 def axis_angle_into_rotation_matrix(normalized_axis, angle, device=torch.device("cpu"), dtype=torch.float32):
-    return exp_matrix(skew_matrix_from_array(normalized_axis * angle, device=device, dtype=dtype), device=device, dtype=dtype)
+    return torch.matrix_exp(skew_matrix_from_array(normalized_axis * angle + 0.00001, device=device, dtype=dtype))

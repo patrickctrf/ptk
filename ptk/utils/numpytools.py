@@ -2,9 +2,11 @@ import numpy as np
 
 __all__ = ["find_nearest", "axis_angle_into_quaternion",
            "quaternion_into_axis_angle", "skew_matrix_from_array",
-           "array_from_skew_matrix", "exp_matrix",
+           "array_from_skew_matrix",
            "rotation_matrix_into_axis_angle", "axis_angle_into_rotation_matrix",
            "hamilton_product"]
+
+from scipy.linalg import expm
 
 
 def hamilton_product(q1, q2):
@@ -82,6 +84,9 @@ https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     # Avoids recalculating this sin.
     sin_angle_2 = np.sin(angle / 2)
 
+    # Replace zero values. Avoid numerical issues.
+    sin_angle_2[sin_angle_2 == 0] = 0.0001
+
     # Rotation axis
     normalized_axis = np.zeros((3,))
     normalized_axis[0] = quaternion[1] / sin_angle_2
@@ -115,12 +120,14 @@ Receives a skew matrix and returns its associated 3-element vector (array).
     return np.array([x[2][1], x[0][2], x[1][0]])
 
 
-def exp_matrix(skew_matrix):
-    norma = np.linalg.norm(skew_matrix)
-
-    return np.eye(N=3, M=3) + \
-           (np.sin(norma) / norma) * skew_matrix + \
-           (1 - np.cos(norma)) / (norma ** 2) * np.matmul(skew_matrix, skew_matrix)
+# # ERRADA!!!!!!!!!!!!!!!!!#
+# def exp_matrix(skew_matrix):
+#     # ERRADA!!!!!!!!!!!!!!!!!#
+#     norma = np.linalg.norm(skew_matrix)
+#
+#     return np.eye(N=3, M=3) + \
+#            (np.sin(norma) / norma) * skew_matrix + \
+#            (1 - np.cos(norma)) / (norma ** 2) * np.matmul(skew_matrix, skew_matrix)
 
 
 def rotation_matrix_into_axis_angle(r_matrix):
@@ -143,4 +150,4 @@ Converts a 3x3 rotation matrix into equivalent axis-angle rotation.
 
 
 def axis_angle_into_rotation_matrix(normalized_axis, angle):
-    return exp_matrix(skew_matrix_from_array(normalized_axis * angle))
+    return expm(1j * skew_matrix_from_array(normalized_axis * angle))

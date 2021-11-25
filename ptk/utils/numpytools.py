@@ -150,4 +150,4 @@ Converts a 3x3 rotation matrix into equivalent axis-angle rotation.
 
 
 def axis_angle_into_rotation_matrix(normalized_axis, angle):
-    return expm(1j * skew_matrix_from_array(normalized_axis * angle))
+    return expm(skew_matrix_from_array(normalized_axis * angle))

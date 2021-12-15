@@ -85,7 +85,7 @@ https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     sin_angle_2 = np.sin(angle / 2)
 
     # Replace zero values. Avoid numerical issues.
-    sin_angle_2[sin_angle_2 == 0] = 0.0001
+    sin_angle_2 = np.where(sin_angle_2 == 0, 0.0001, sin_angle_2)
 
     # Rotation axis
     normalized_axis = np.zeros((3,))

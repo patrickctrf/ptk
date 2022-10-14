@@ -26,7 +26,7 @@ finally:
 
 setuptools.setup(
     name="ptk-patrickctrf",
-    version="0.1.1",
+    version="0.1.2",
     author="patrickctrf",
     author_email="patrickctrf@gmail.com",
     description="Package for Python programming by Patrick Ferreira",

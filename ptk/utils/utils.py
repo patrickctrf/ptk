@@ -144,14 +144,13 @@ when you are training in GPU and processor is almost idle.
 Runs the internal thread that iterates over the dataloader until fulfilling the
 buffer or the end of samples.
         """
-        for i, (x, y) in enumerate(self.data_loader):
+        for i, sample in enumerate(self.data_loader):
             # Important to set before put in queue to avoid race condition
             # would happen if trying to get() in next() method before setting this flag
             if i >= len(self) - 1:
                 self.dataloader_finished = True
 
-            self.buffer_queue.put([x.to(dtype=self.data_type, device=self.device),
-                                   y.to(dtype=self.data_type, device=self.device)])
+            self.buffer_queue.put([x.to(dtype=self.data_type, device=self.device, non_blocking=True) for x in sample])
 
     def __iter__(self):
         """
